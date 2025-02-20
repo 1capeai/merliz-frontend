@@ -1,4 +1,18 @@
-"use client";
+"use client"; // Must be at top
+
+import { Suspense } from "react";
+
+export default function RiderResetPasswordPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <RiderResetPasswordContent />
+    </Suspense>
+  );
+}
+
+//////////////////
+// ACTUAL CONTENT
+//////////////////
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
@@ -6,7 +20,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Car, Clock, MapPin, Smile } from "lucide-react";
 
-export default function RiderResetPassword() {
+function RiderResetPasswordContent() {
   const gold = "#D4AF37";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,20 +47,20 @@ export default function RiderResetPassword() {
       setError("Missing token, please use a valid reset link.");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setError("Passwords do not match.");
       return;
     }
 
     setLoading(true);
     try {
-      const { data } = await axios.post("https://backend-2tr2.onrender.com/api/auth/users/reset-password", {
-        token,
-        newPassword,
-      });
+      const { data } = await axios.post(
+        "https://backend-2tr2.onrender.com/api/auth/users/reset-password",
+        { token, newPassword: newPassword.trim() }
+      );
       setMessage(data.message || "Password reset successful.");
 
-      // Redirect based on role (for rider, redirect to the rider page)
+      // Decide where to redirect based on user role
       if (data.role === "rider") {
         setTimeout(() => router.push("/rider"), 2000);
       } else if (data.role === "driver") {
@@ -65,7 +79,7 @@ export default function RiderResetPassword() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Left Half: Reset Password Form */}
+      {/* Left: Form */}
       <div className="md:w-1/2 flex items-center justify-center p-2 bg-white">
         <motion.div
           className="w-full max-w-xs p-4 rounded-xl shadow-lg bg-white"
@@ -93,7 +107,8 @@ export default function RiderResetPassword() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              className="border border-black p-2 w-full rounded bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+              className="border border-black p-2 w-full rounded bg-white text-black placeholder-gray-500
+                         focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
             />
             <input
               type="password"
@@ -101,7 +116,8 @@ export default function RiderResetPassword() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="border border-black p-2 w-full rounded bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+              className="border border-black p-2 w-full rounded bg-white text-black placeholder-gray-500
+                         focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
             />
             <button
               type="submit"
@@ -122,7 +138,7 @@ export default function RiderResetPassword() {
         </motion.div>
       </div>
 
-      {/* Right Half: Motivational Message & Benefits */}
+      {/* Right: Info & Benefits */}
       <div className="md:w-1/2 flex items-center justify-center p-2 bg-black">
         <motion.div
           className="text-center space-y-4 px-4"
@@ -134,7 +150,7 @@ export default function RiderResetPassword() {
             Get Back on the Road
           </h2>
           <p className="text-base text-white">
-            Reset your password to continue enjoying seamless rides, quick pickups, and a smooth experience.
+            Reset your password to continue enjoying seamless rides and quick pickups.
           </p>
           <div className="space-y-3">
             <div className="flex items-center justify-center space-x-2">
