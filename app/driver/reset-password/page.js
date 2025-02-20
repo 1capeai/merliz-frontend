@@ -1,11 +1,19 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
-export default function DriverResetPassword() {
+export default function DriverResetPasswordWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DriverResetPassword />
+    </Suspense>
+  );
+}
+
+function DriverResetPassword() {
   const gold = "#D4AF37";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,7 +25,6 @@ export default function DriverResetPassword() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
-  // Show error if token is missing
   useEffect(() => {
     if (!token) {
       setError("Invalid token. Please check your reset link.");
@@ -48,7 +55,6 @@ export default function DriverResetPassword() {
 
       setMessage(data.message || "Password reset successful.");
 
-      // Redirect based on user role
       if (data.role === "driver") {
         setTimeout(() => router.push("/driver/login"), 2000);
       } else if (data.role === "MerlizSellers") {
@@ -65,7 +71,6 @@ export default function DriverResetPassword() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Left Half: Reset Password Form */}
       <div className="md:w-1/2 flex items-center justify-center p-2 bg-white">
         <motion.div
           className="w-full max-w-xs p-4 rounded-xl shadow-lg bg-white"
@@ -73,7 +78,6 @@ export default function DriverResetPassword() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8 }}
         >
-          {/* Logo */}
           <div className="flex justify-center mb-2">
             <Image
               src="/logo.jpg"
@@ -122,7 +126,6 @@ export default function DriverResetPassword() {
         </motion.div>
       </div>
 
-      {/* Right Half: Motivational Message */}
       <div className="md:w-1/2 flex items-center justify-center p-2 bg-black">
         <motion.div
           className="text-center"
