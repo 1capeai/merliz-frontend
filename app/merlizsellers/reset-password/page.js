@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"; // Prevents pre-rendering issues
+
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,16 +14,19 @@ export default function ResetPasswordUser() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState("");
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
 
   useEffect(() => {
-    if (!token) {
+    const tokenParam = searchParams.get("token") || "";
+    setToken(tokenParam);
+
+    if (!tokenParam) {
       setError("Invalid token. Please check your reset link.");
     }
-  }, [token]);
+  }, [searchParams]);
 
   const handleReset = async (e) => {
     e.preventDefault();
@@ -33,8 +38,13 @@ export default function ResetPasswordUser() {
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
+    if (newPassword.trim().length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -42,15 +52,13 @@ export default function ResetPasswordUser() {
     try {
       const { data } = await axios.post("https://backend-2tr2.onrender.com/api/auth/users/reset-password", {
         token,
-        newPassword,
+        newPassword: newPassword.trim(),
       });
 
       setMessage(data.message || "Password reset successful. Redirecting to login...");
-      setTimeout(() => {
-        router.push("/merlizsellers/login");
-      }, 2000);
+      setTimeout(() => router.push("/merlizsellers/login"), 2500);
     } catch (err) {
-      setError(err.response?.data?.message || "Reset password failed");
+      setError(err.response?.data?.message || "Reset password failed. Try again.");
     } finally {
       setLoading(false);
     }
@@ -80,10 +88,12 @@ export default function ResetPasswordUser() {
           <form onSubmit={handleReset}>
             <input
               type="password"
-              placeholder="New Password"
+              placeholder="New Password (min. 6 chars)"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="border border-black p-3 mt-4 w-full rounded-lg bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+              minLength={6}
+              required
             />
             <input
               type="password"
@@ -91,6 +101,7 @@ export default function ResetPasswordUser() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="border border-black p-3 mt-4 w-full rounded-lg bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+              required
             />
             <button
               type="submit"
