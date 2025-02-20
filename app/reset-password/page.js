@@ -1,12 +1,25 @@
-"use client"; // Ensure this is at the very top
+"use client"; // Must be at the top
 
-import { useState, useEffect, Suspense } from "react";
+import { Suspense } from "react";
+
+export default function AdminResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
+      <AdminResetPasswordContent />
+    </Suspense>
+  );
+}
+
+//////////////////
+// ACTUAL CONTENT
+//////////////////
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
-function ResetPasswordContent() {
+function AdminResetPasswordContent() {
   const gold = "#D4AF37";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,7 +28,7 @@ function ResetPasswordContent() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams(); // ✅ Wrapped in Suspense below
+  const searchParams = useSearchParams(); 
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -41,10 +54,10 @@ function ResetPasswordContent() {
 
     setLoading(true);
     try {
-      const { data } = await axios.post("https://backend-2tr2.onrender.com/api/admin/reset-password", {
-        token,
-        newPassword,
-      });
+      const { data } = await axios.post(
+        "https://backend-2tr2.onrender.com/api/admin/reset-password",
+        { token, newPassword }
+      );
       setMessage(data.message || "Password reset successful.");
 
       // Redirect to admin login after a short delay
@@ -58,7 +71,7 @@ function ResetPasswordContent() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Left Half: Reset Password Form */}
+      {/* Left: Form */}
       <div className="md:w-1/2 flex items-center justify-center p-2 bg-white">
         <motion.div
           className="w-full max-w-xs p-4 rounded-xl shadow-lg bg-white"
@@ -86,7 +99,8 @@ function ResetPasswordContent() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              className="border border-black p-2 w-full rounded bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+              className="border border-black p-2 w-full rounded bg-white text-black
+                         placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
             />
             <input
               type="password"
@@ -94,7 +108,8 @@ function ResetPasswordContent() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="border border-black p-2 w-full rounded bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
+              className="border border-black p-2 w-full rounded bg-white text-black
+                         placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]"
             />
             <button
               type="submit"
@@ -115,7 +130,7 @@ function ResetPasswordContent() {
         </motion.div>
       </div>
 
-      {/* Right Half: Motivational Message */}
+      {/* Right: Motivational Message */}
       <div className="md:w-1/2 flex items-center justify-center p-2 bg-black">
         <motion.div
           className="text-center space-y-4 px-4"
@@ -135,14 +150,5 @@ function ResetPasswordContent() {
         </motion.div>
       </div>
     </div>
-  );
-}
-
-// ✅ Wrapped with Suspense for Next.js compatibility
-export default function AdminResetPassword() {
-  return (
-    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
-      <ResetPasswordContent />
-    </Suspense>
   );
 }
