@@ -1,11 +1,12 @@
-"use client";
-import { useState, useEffect } from "react";
+"use client"; // Ensure this is at the very top
+
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
-export default function AdminResetPassword() {
+function ResetPasswordContent() {
   const gold = "#D4AF37";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -14,7 +15,7 @@ export default function AdminResetPassword() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams(); // ✅ Wrapped in Suspense below
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -134,5 +135,14 @@ export default function AdminResetPassword() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+// ✅ Wrapped with Suspense for Next.js compatibility
+export default function AdminResetPassword() {
+  return (
+    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
