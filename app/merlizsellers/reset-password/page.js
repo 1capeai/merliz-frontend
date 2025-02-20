@@ -1,6 +1,7 @@
+"use client"; // Ensure this is at the top!
+
 export const dynamic = "force-dynamic"; // Prevents pre-rendering issues
 
-"use client";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
