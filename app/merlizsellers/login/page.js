@@ -19,7 +19,7 @@ export default function MerlizSellersLogin() {
     setError("");
     try {
       const { data } = await axios.post(
-        "https://backend-2tr2.onrender.com/api/auth/merlizsellers/login",
+        "http://localhost:5001/api/auth/merlizsellers/login",
         { email, password }
       );
       localStorage.setItem("merlizsellersToken", data.token);
