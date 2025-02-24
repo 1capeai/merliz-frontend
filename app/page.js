@@ -230,7 +230,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="px-4 sm:px-8 py-4 border-t border-gray-700 text-center">
         <div className="flex flex-col items-center gap-2">
-          <p className="text-gray-400">+27 66 375 8904 • info@merlizholdings.com</p>
+          <p className="text-gray-400">+27 66 375 8904 • info.merlizholdings@gmail.com</p>
           <p className="text-gray-500">
             © {new Date().getFullYear()} MerLiz Holdings (PTY) Ltd. All rights reserved.
           </p>
