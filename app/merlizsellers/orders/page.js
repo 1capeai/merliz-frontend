@@ -5,54 +5,44 @@ import { motion, AnimatePresence } from "framer-motion";
 import { XCircle, Trash, PlusCircle, Upload, Bell, Edit2 } from "lucide-react";
 
 export default function SellerOrdersPage() {
-  // Seller info retrieved from localStorage
   const [seller, setSeller] = useState(null);
-  // Orders placed by this seller
   const [ordersList, setOrdersList] = useState([]);
-  // Products available to order
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showOrders, setShowOrders] = useState(false); // Default to closed
 
-  // Order modal state (for placing a new order)
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderQuantity, setOrderQuantity] = useState("");
-  // Proof of payment file state (optional)
   const [proofFile, setProofFile] = useState(null);
-  // Image preview modal state
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
-  // Modal state for uploading payment slip for an existing order
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [orderToUpload, setOrderToUpload] = useState(null);
   const [uploadProofFile, setUploadProofFile] = useState(null);
 
-  // Fixed categories for filtering
   const categories = ["All", "FROZEN FOODS", "BURGERS", "PROTEIN FOODS", "CONFECTIONERY"];
   const gold = "#D4AF37";
 
-  // Retrieve seller info from localStorage on mount
   useEffect(() => {
     const storedSeller = localStorage.getItem("merlizsellersUser");
-    console.log("Stored seller:", storedSeller);
     if (storedSeller) {
       try {
-        setSeller(JSON.parse(storedSeller));
+        const parsedSeller = JSON.parse(storedSeller);
+        setSeller(parsedSeller);
       } catch (err) {
         console.error("Error parsing seller data:", err);
       }
     }
   }, []);
 
-  // Fetch products from backend
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const { data } = await axios.get("https://backend-2tr2.onrender.com/api/products");
-        // data may be an array or an object with a 'products' property
         const prods = data.products || data;
         setProducts(prods);
         setFilteredProducts(prods);
@@ -66,11 +56,9 @@ export default function SellerOrdersPage() {
     fetchProducts();
   }, []);
 
-  // Fetch seller orders from backend and filter by seller.id
   const fetchSellerOrders = async () => {
     try {
       const { data } = await axios.get("https://backend-2tr2.onrender.com/api/orders");
-      console.log("All orders from backend:", data);
       if (!seller || !seller.id) {
         console.warn("Seller information is missing for filtering orders.");
         return;
@@ -80,16 +68,12 @@ export default function SellerOrdersPage() {
         if (!order.user) return false;
         let orderUserId = "";
         if (typeof order.user === "object" && order.user !== null) {
-          orderUserId = order.user._id
-            ? order.user._id.toString()
-            : order.user.toString();
+          orderUserId = order.user._id ? order.user._id.toString() : order.user.toString();
         } else {
           orderUserId = order.user.toString();
         }
-        console.log("Comparing order user:", orderUserId, "with seller id:", sellerId);
         return orderUserId === sellerId;
       });
-      console.log("Filtered seller orders:", sellerOrders);
       setOrdersList(sellerOrders);
     } catch (err) {
       console.error("Error fetching seller orders:", err);
@@ -102,7 +86,6 @@ export default function SellerOrdersPage() {
     }
   }, [seller]);
 
-  // Filter products by category
   useEffect(() => {
     if (selectedCategory === "All") {
       setFilteredProducts(products);
@@ -111,7 +94,47 @@ export default function SellerOrdersPage() {
     }
   }, [selectedCategory, products]);
 
-  // Open order modal when seller clicks "Place Order"
+  const [invoiceMapping, setInvoiceMapping] = useState({});
+
+  useEffect(() => {
+    const updateInvoiceMapping = async () => {
+      try {
+        const token = localStorage.getItem("adminToken");
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}` };
+        ordersList.forEach(async (order) => {
+          try {
+            const res = await axios.get(`https://backend-2tr2.onrender.com/api/invoices/order/${order._id}`, { headers });
+            if (res.data && res.data.invoice) {
+              setInvoiceMapping((prev) => ({
+                ...prev,
+                [order._id]: res.data.invoice.invoiceNumber,
+              }));
+            }
+          } catch (err) {
+            // No invoice exists for this order.
+          }
+        });
+      } catch (error) {
+        console.error("Error updating invoice mapping:", error);
+      }
+    };
+    if (ordersList.length > 0) updateInvoiceMapping();
+  }, [ordersList]);
+
+  const getSenderInfo = (order) => {
+    if (order.isGuest) {
+      return { role: "Guest", name: order.customerDetails?.name || "Guest" };
+    }
+    if (order.user && typeof order.user === "object") {
+      return { role: order.user.role || "Admin", name: order.user.name || "Admin" };
+    }
+    if (order.user && typeof order.user === "string" && seller && order.user === seller.id) {
+      return { role: seller.role, name: seller.name };
+    }
+    return { role: "Unknown", name: "Unknown" };
+  };
+
   const handleOrderClick = (product) => {
     setSelectedProduct(product);
     setOrderQuantity("");
@@ -119,28 +142,24 @@ export default function SellerOrdersPage() {
     setOrderModalOpen(true);
   };
 
-  // Open upload modal for an existing order's payment slip
   const handleUploadPayment = (order) => {
     setOrderToUpload(order);
     setUploadProofFile(null);
     setUploadModalOpen(true);
   };
 
-  // Handle proof file change for new order
   const handleProofChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setProofFile(e.target.files[0]);
     }
   };
 
-  // Handle proof file change for upload modal
   const handleUploadProofChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setUploadProofFile(e.target.files[0]);
     }
   };
 
-  // Handle order submission by seller (placing a new order)
   const handleOrderSubmit = async () => {
     if (!orderQuantity || Number(orderQuantity) < 1) {
       alert("Please enter a valid order quantity.");
@@ -153,7 +172,6 @@ export default function SellerOrdersPage() {
     try {
       const formData = new FormData();
       formData.append("user", seller.id);
-      formData.append("isGuest", "false");
       formData.append(
         "customerDetails",
         JSON.stringify({
@@ -176,7 +194,6 @@ export default function SellerOrdersPage() {
       formData.append("quantity", orderQuantity);
       formData.append("status", "Pending");
       formData.append("images", JSON.stringify([selectedProduct.image]));
-      // Set paymentStatus based on whether a proof file is provided.
       const paymentStatus = proofFile ? "pending" : "missing";
       formData.append("paymentStatus", paymentStatus);
       if (proofFile) {
@@ -198,7 +215,6 @@ export default function SellerOrdersPage() {
     }
   };
 
-  // Handle payment slip upload for an existing order
   const handleUploadPaymentSubmit = async () => {
     if (!uploadProofFile) {
       alert("Please select a payment slip file.");
@@ -223,7 +239,6 @@ export default function SellerOrdersPage() {
     }
   };
 
-  // Handle order deletion
   const handleDeleteOrder = async (orderId) => {
     if (!window.confirm("Are you sure you want to delete this order?")) return;
     try {
@@ -244,67 +259,86 @@ export default function SellerOrdersPage() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row p-6 gap-6">
-      {/* Left Panel: Seller's Orders */}
-      <div className="md:w-1/2">
-        <h1 className="text-3xl font-bold mb-4">My Orders</h1>
-        {ordersList.length > 0 ? (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="p-2 border">Order ID</th>
-                <th className="p-2 border">Product</th>
-                <th className="p-2 border">Status</th>
-                <th className="p-2 border">Payment</th>
-                <th className="p-2 border">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordersList.map((order) => (
-                <tr key={order._id} className="border">
-                  <td className="p-2">{order._id}</td>
-                  <td className="p-2">{order.product?.name || "N/A"}</td>
-                  <td className="p-2">{order.status}</td>
-                  <td className="p-2">
-                    {order.paymentStatus
-                      ? order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)
-                      : "Missing"}
-                  </td>
-                  <td className="p-2 flex gap-2">
-                    {order.paymentStatus === "missing" && (
-                      <button
-                        onClick={() => handleUploadPayment(order)}
-                        className="bg-green-500 text-white px-2 py-1 rounded"
-                      >
-                        Upload Payment Slip
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDeleteOrder(order._id)}
-                      className="bg-red-500 text-white px-2 py-1 rounded"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No orders placed yet.</p>
-        )}
+    <div className="flex flex-col p-4 gap-4">
+      {/* Toggle Button */}
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => setShowOrders(!showOrders)}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          {showOrders ? "Hide Orders" : "View Orders"}
+        </button>
       </div>
 
-      {/* Right Panel: Products List for Placing Orders */}
-      <div className="md:w-1/2">
+      {/* Orders Table */}
+      {showOrders && (
+        <div className="mb-4 overflow-x-auto">
+          <h1 className="text-3xl font-bold mb-4">My Orders</h1>
+          {ordersList.length > 0 ? (
+            <table className="w-full border-collapse min-w-full">
+              <thead>
+                <tr className="bg-gray-200">
+                  <th className="p-2 border">Order ID</th>
+                  <th className="p-2 border">Product</th>
+                  <th className="p-2 border">Sender Role</th>
+                  <th className="p-2 border">Sender Name</th>
+                  <th className="p-2 border">Status</th>
+                  <th className="p-2 border">Payment</th>
+                  <th className="p-2 border">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordersList.map((order) => {
+                  const { role: senderRole, name: senderName } = getSenderInfo(order);
+                  return (
+                    <tr key={order._id} className="border">
+                      <td className="p-2" data-label="Order ID">{order._id}</td>
+                      <td className="p-2" data-label="Product">{order.product?.name || "N/A"}</td>
+                      <td className="p-2" data-label="Sender Role">{senderRole}</td>
+                      <td className="p-2" data-label="Sender Name">{senderName}</td>
+                      <td className="p-2" data-label="Status">{order.status}</td>
+                      <td className="p-2" data-label="Payment">
+                        {order.paymentStatus
+                          ? order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)
+                          : "Missing"}
+                      </td>
+                      <td className="p-2 flex gap-2" data-label="Action">
+                        {order.paymentStatus === "missing" && (
+                          <button
+                            onClick={() => handleUploadPayment(order)}
+                            className="bg-green-500 text-white px-2 py-1 rounded"
+                          >
+                            Upload Payment Slip
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteOrder(order._id)}
+                          className="bg-red-500 text-white px-2 py-1 rounded"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <p>No orders placed yet.</p>
+          )}
+        </div>
+      )}
+
+      {/* Place a New Order Section */}
+      <div className="w-full">
         <h1 className="text-3xl font-bold mb-4">Place a New Order</h1>
         {/* Category Filters */}
-        <div className="flex justify-center mb-6">
+        <div className="flex flex-wrap justify-center mb-4">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`mx-2 px-4 py-2 rounded ${
+              className={`m-1 px-4 py-2 rounded ${
                 selectedCategory === cat ? "bg-yellow-300" : "bg-gray-200"
               }`}
             >
@@ -313,7 +347,7 @@ export default function SellerOrdersPage() {
           ))}
         </div>
         {/* Products Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredProducts.map((product) => (
             <div key={product._id} className="bg-white shadow rounded p-4">
               {product.image && (

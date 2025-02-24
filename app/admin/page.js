@@ -19,6 +19,7 @@ import {
   UserCheck,
   Activity,
   User,
+  MessageSquare, // New icon for Contact Messages
 } from "lucide-react";
 
 // Import your custom components
@@ -31,6 +32,7 @@ import MerlizsellersList from "./components/merlizsellers"; // For listing Merli
 import Products from "./components/products"; // New products component
 import Drivers from "./components/drivers"; // Drivers component
 import Riders from "./components/riders"; // **NEW: Import Riders component**
+import ContactMessages from "./components/ContactMessages"; // NEW: Import ContactMessages component
 
 const BarChart = dynamic(
   () => import("react-chartjs-2").then((mod) => mod.Bar),
@@ -109,7 +111,7 @@ export default function AdminDashboard() {
     ],
   };
 
-  // Updated menuOptions: Removed "All Trips", "Accounting", and "Driver Applications"
+  // Updated menu options including "Contact Messages"
   const menuOptions = [
     { name: "Dashboard", icon: LayoutDashboard, key: "dashboard" },
     { name: "Users", icon: Users, key: "users" },
@@ -119,6 +121,7 @@ export default function AdminDashboard() {
     { name: "Products", icon: FileText, key: "products" },
     { name: "Settings", icon: SettingsIcon, key: "settings" },
     { name: "MerlizSellers", icon: User, key: "merlizsellers" },
+    { name: "Contact Messages", icon: MessageSquare, key: "contacts" },
   ];
 
   const renderContent = () => {
@@ -201,6 +204,12 @@ export default function AdminDashboard() {
         return (
           <div className="p-5">
             <MerlizsellersList isDark={isDark} />
+          </div>
+        );
+      case "contacts":
+        return (
+          <div className="p-5">
+            <ContactMessages isDark={isDark} />
           </div>
         );
       default:

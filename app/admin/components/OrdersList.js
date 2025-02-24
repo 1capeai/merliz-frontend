@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { XCircle, PlusCircle, Upload, Bell, Edit2 } from "lucide-react";
+import { XCircle, PlusCircle, Upload, Edit2, XCircle as DeleteIcon } from "lucide-react";
 import axios from "axios";
 
 // Static list of products for product selection modal
@@ -113,18 +114,12 @@ const groupedProducts = staticProducts.reduce((acc, product) => {
 }, {});
 
 export default function OrdersList({ isDark, showTable = false }) {
-  // Dummy user id – replace with your actual authenticated user's id if needed
-  const dummyUserId = "6432f7ea3b74a10f0c9f9f9a";
+  const router = useRouter();
 
-  // States for create order form
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [useCustomProduct, setUseCustomProduct] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [orderCreated, setOrderCreated] = useState(false);
+  // Use dynamic admin data from localStorage
   const [newOrder, setNewOrder] = useState({
-    user: dummyUserId,
-    role: "admin", // Only admin can update orders
+    user: "", // to be populated from localStorage
+    role: "Admin", // default role for orders created by admin
     productName: "",
     price: "",
     customName: "",
@@ -133,36 +128,114 @@ export default function OrdersList({ isDark, showTable = false }) {
     size: "",
     status: "Pending",
     images: [],
+    imageUrl: "",
   });
 
-  // States for orders table
+  // Other state variables
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [useCustomProduct, setUseCustomProduct] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderCreated, setOrderCreated] = useState(false);
   const [ordersList, setOrdersList] = useState([]);
-  // States for editing an order
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [invoiceMapping, setInvoiceMapping] = useState({});
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [orderQuantity, setOrderQuantity] = useState("");
+  const [proofFile, setProofFile] = useState(null);
+  const [uploadProofFile, setUploadProofFile] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Debug logging
+  // New: State for mapping user IDs to user objects fetched from /api/admin/users
+  const [usersMapping, setUsersMapping] = useState({});
+
+  // On mount, retrieve the admin user from localStorage and update newOrder state
   useEffect(() => {
-    console.log("New Order State:", newOrder);
-  }, [newOrder]);
+    const storedAdmin = localStorage.getItem("adminUser");
+    console.log("Stored admin:", storedAdmin);
+    if (storedAdmin) {
+      try {
+        const parsedAdmin = JSON.parse(storedAdmin);
+        console.log("Parsed admin user details:", parsedAdmin);
+        setNewOrder((prev) => ({
+          ...prev,
+          user: parsedAdmin.id,
+          role: parsedAdmin.role, // Should be "Admin"
+        }));
+      } catch (err) {
+        console.error("Error parsing admin user data:", err);
+      }
+    } else {
+      // Instead of logging an error, log a warning and use fallback admin
+      console.warn("No admin user found in localStorage; using fallback admin.");
+      setNewOrder((prev) => ({ ...prev, user: "613a1f1e1f1e1f1e1f1e1f1e", role: "Admin" }));
+      // Optionally, redirect to login: router.push("/admin/login");
+    }
+  }, [router]);
 
+  // Fetch users mapping from /api/admin/users
   useEffect(() => {
-    console.log("Selected Order for Editing:", selectedOrder);
-  }, [selectedOrder]);
+    const fetchUsersMapping = async () => {
+      try {
+        const token = localStorage.getItem("adminToken");
+        if (!token) {
+          console.error("No admin token found");
+          return;
+        }
+        const headers = { Authorization: `Bearer ${token}` };
+        const res = await axios.get("https://backend-2tr2.onrender.com/api/admin/users", { headers });
+        const mapping = {};
+        res.data.forEach((user) => {
+          mapping[user._id] = user;
+        });
+        setUsersMapping(mapping);
+        console.log("Fetched users mapping:", mapping);
+      } catch (error) {
+        console.error("Error fetching users mapping:", error);
+      }
+    };
+    fetchUsersMapping();
+  }, []);
 
-  // Fetch orders for table (admin only)
+  // Fetch orders list from backend and update invoice mapping
   const fetchOrdersList = async () => {
     try {
       const token = localStorage.getItem("adminToken");
+      console.log("Admin token:", token);
       if (!token) {
         console.error("No admin token found");
         return;
       }
       const headers = { Authorization: `Bearer ${token}` };
       const { data } = await axios.get("https://backend-2tr2.onrender.com/api/orders", { headers });
-      console.log("Fetched Orders:", data);
+      console.log("Fetched orders from backend:", data);
       setOrdersList(data);
+
+      // For each order, check if an invoice exists
+      data.forEach(async (order) => {
+        try {
+          const res = await axios.get(`https://backend-2tr2.onrender.com/api/invoices/order/${order._id}`, { headers });
+          if (res.data && res.data.invoice) {
+            setInvoiceMapping((prev) => ({
+              ...prev,
+              [order._id]: res.data.invoice.invoiceNumber,
+            }));
+            console.log(`Invoice for order ${order._id}: ${res.data.invoice.invoiceNumber}`);
+          } else {
+            console.log(`No invoice for order ${order._id}`);
+          }
+        } catch (err) {
+          if (err.response && err.response.status === 404) {
+            console.log(`No invoice found for order ${order._id} (404)`);
+          } else {
+            console.error(`Error fetching invoice for order ${order._id}:`, err.message);
+          }
+        }
+      });
     } catch (error) {
       console.error("Error fetching orders list:", error);
     }
@@ -174,88 +247,183 @@ export default function OrdersList({ isDark, showTable = false }) {
     }
   }, [showTable]);
 
-  // Update order status (admin only)
-  const updateOrderState = async (orderId, newStatus) => {
-    console.log("Updating order", orderId, "to status", newStatus);
+  // Helper: get sender info from an order.
+  const getSenderInfo = (order) => {
+    if (order.isGuest) {
+      console.log(`Order ${order._id} is a guest order; customer name: ${order.customerDetails?.name}`);
+      return { role: "Guest", name: order.customerDetails?.name || "Guest" };
+    }
+    if (order.user && order.user.role) {
+      console.log(`Order ${order._id} populated user data: ${JSON.stringify(order.user)}`);
+      return { role: order.user.role, name: order.user.name || "Unknown" };
+    }
+    if (order.user && usersMapping[order.user]) {
+      console.log(`Order ${order._id} found user in mapping: ${JSON.stringify(usersMapping[order.user])}`);
+      return { role: usersMapping[order.user].role, name: usersMapping[order.user].name || "Unknown" };
+    }
+    console.log(`Order ${order._id} has no user data; senderRole: ${order.senderRole}`);
+    return { role: order.senderRole || "Admin", name: "Admin" };
+  };
+
+  // View order details
+  const handleViewDetails = (order) => {
+    console.log("Viewing details for order:", order._id);
+    router.push(`/admin/orders/${order._id}`);
+  };
+
+  // Generate or view invoice for an order
+  const handleGenerateInvoice = async (order) => {
+    if (order.status !== "Finalized") {
+      console.log(`Order ${order._id} status is not finalized: ${order.status}`);
+      setWarningMessage("You must change the order status to 'Finalized' before generating or viewing an invoice.");
+      setIsWarningModalOpen(true);
+      return;
+    }
     try {
       const token = localStorage.getItem("adminToken");
+      console.log("Generating invoice for order:", order._id);
       if (!token) {
-        console.error("No admin token found");
+        alert("No admin token found");
         return;
       }
       const headers = { Authorization: `Bearer ${token}` };
-      await axios.put(
-        `https://backend-2tr2.onrender.com/api/orders/update/${orderId}`,
-        { status: newStatus },
-        { headers }
+
+      if (invoiceMapping[order._id]) {
+        console.log(`Invoice exists for order ${order._id}: ${invoiceMapping[order._id]}`);
+        router.push(`/admin/invoices/${invoiceMapping[order._id]}`);
+      } else {
+        const { data } = await axios.post("https://backend-2tr2.onrender.com/api/invoices", { orderId: order._id }, { headers });
+        console.log("Invoice generated for order:", order._id, "Invoice number:", data.invoice.invoiceNumber);
+        setInvoiceMapping((prev) => ({
+          ...prev,
+          [order._id]: data.invoice.invoiceNumber,
+        }));
+        router.push(`/admin/invoices/${data.invoice.invoiceNumber}`);
+      }
+    } catch (error) {
+      console.error("Error generating invoice:", error.response?.data || error.message);
+      alert("Error generating invoice: " + (error.response?.data?.error || error.message));
+    }
+  };
+
+  // Create Order function for Admin
+  const handleCreateOrder = async () => {
+    // Allow creation if a product is selected OR a manual product name is provided.
+    if (!selectedProduct && !newOrder.productName) {
+      console.error("No product selected and no product name provided! Cannot create order.");
+      return;
+    }
+    // Ensure admin user is set.
+    if (!newOrder.user) {
+      console.error("No admin user found; cannot create order.");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const formData = new FormData();
+      formData.append("user", newOrder.user);
+      // Do not send role from the client; the backend sets senderRole.
+      formData.append(
+        "customerDetails",
+        JSON.stringify({
+          name: newOrder.name || "N/A",
+          phone: newOrder.phone || "",
+          address: newOrder.address || "",
+        })
       );
+      let productData;
+      if (selectedProduct) {
+        productData = {
+          productId: selectedProduct._id ? selectedProduct._id : null,
+          name: selectedProduct.name,
+          custom: false,
+          description: selectedProduct.description || "",
+          price: selectedProduct.price,
+          size: selectedProduct.size || "",
+        };
+      } else {
+        productData = {
+          productId: null,
+          name: newOrder.productName,
+          custom: false,
+          description: "",
+          price: newOrder.price,
+          size: newOrder.size || "",
+        };
+      }
+      formData.append("product", JSON.stringify(productData));
+      formData.append("quantity", newOrder.quantity);
+      formData.append("status", newOrder.status);
+      if (newOrder.images && newOrder.images.length > 0) {
+        newOrder.images.forEach((file) => formData.append("images", file));
+      } else if (newOrder.imageUrl) {
+        formData.append("images", JSON.stringify([newOrder.imageUrl]));
+      }
+      console.log("Creating order with newOrder:", newOrder);
+      console.log("Selected product for order:", selectedProduct);
+      const response = await axios.post("https://backend-2tr2.onrender.com/api/orders", formData);
+      console.log("Order created successfully:", response.data);
+      setOrderCreated(true);
+      fetchOrdersList();
+    } catch (err) {
+      console.error("Error creating order:", err.response?.data || err.message, err);
+      setIsSubmitting(false);
+    }
+  };
+
+  const updateOrderState = async (orderId, newStatus) => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      if (!token) return;
+      const headers = { Authorization: `Bearer ${token}` };
+      console.log("Updating order", orderId, "to status", newStatus);
+      await axios.put(`https://backend-2tr2.onrender.com/api/orders/update/${orderId}`, { status: newStatus }, { headers });
       fetchOrdersList();
     } catch (error) {
       console.error("Error updating order:", error);
     }
   };
 
-  // Delete order (admin only)
   const handleDeleteOrder = async (orderId) => {
     if (!window.confirm("Are you sure you want to delete this order?")) return;
     try {
       const token = localStorage.getItem("adminToken");
-      if (!token) {
-        console.error("No admin token found");
-        return;
-      }
+      if (!token) return;
       const headers = { Authorization: `Bearer ${token}` };
+      console.log("Deleting order:", orderId);
       await axios.delete(`https://backend-2tr2.onrender.com/api/orders/${orderId}`, { headers });
-      console.log("Order deleted successfully");
       fetchOrdersList();
     } catch (error) {
       console.error("Error deleting order:", error);
     }
   };
 
-  // Open edit modal (only admin can edit orders)
   const handleEditOrder = (order) => {
-    console.log("Editing order:", order);
+    console.log("Editing order:", order._id);
     setSelectedOrder(order);
     setIsEditModalOpen(true);
   };
 
-  // Save edits from modal (admin only)
   const handleSaveEdit = async () => {
     if (!selectedOrder) return;
-    console.log("Saving edits for order:", selectedOrder);
     setIsEditSubmitting(true);
     try {
       const token = localStorage.getItem("adminToken");
-      if (!token) {
-        console.error("No admin token found");
-        return;
-      }
+      if (!token) return;
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" };
       const formData = new FormData();
       formData.append("status", selectedOrder.status);
       formData.append("price", selectedOrder.product?.price || selectedOrder.price);
       formData.append("size", selectedOrder.product?.size || selectedOrder.size);
       formData.append("quantity", selectedOrder.quantity);
-      if (selectedOrder.customName !== undefined) {
+      if (selectedOrder.customName !== undefined)
         formData.append("customName", selectedOrder.customName);
-      }
-      if (selectedOrder.customDescription !== undefined) {
+      if (selectedOrder.customDescription !== undefined)
         formData.append("customDescription", selectedOrder.customDescription);
-      }
-      if (selectedOrder.newImage) {
+      if (selectedOrder.newImage)
         formData.append("image", selectedOrder.newImage);
-      }
-      console.log("FormData entries for edit:");
-      for (let pair of formData.entries()) {
-        console.log(`${pair[0]}: ${pair[1]}`);
-      }
-      const response = await axios.put(
-        `https://backend-2tr2.onrender.com/api/orders/update/${selectedOrder._id}`,
-        formData,
-        { headers }
-      );
-      console.log("Order updated (from modal):", response.data);
+      console.log("Saving edited order:", selectedOrder._id, "with data:", selectedOrder);
+      await axios.put(`https://backend-2tr2.onrender.com/api/orders/update/${selectedOrder._id}`, formData, { headers });
       setIsEditModalOpen(false);
       setSelectedOrder(null);
       fetchOrdersList();
@@ -266,78 +434,83 @@ export default function OrdersList({ isDark, showTable = false }) {
     }
   };
 
-  // Toggle custom product option in the create form
   const toggleCustomProduct = () => {
     setUseCustomProduct(!useCustomProduct);
-    setNewOrder((prev) => ({
-      ...prev,
-      productName: "",
-      customName: "",
-      customDescription: "",
-      price: "",
-    }));
+    setNewOrder((prev) => ({ ...prev, productName: "", customName: "", customDescription: "", price: "" }));
   };
 
-  // When a product is selected from the product selection modal
   const handleSelectProduct = (product) => {
     if (product.soldOut) return;
-    console.log("Product selected:", product);
+    console.log("Selected product:", product);
     setNewOrder((prev) => ({
       ...prev,
       productName: product.name,
       price: product.price,
+      imageUrl: product.image,
     }));
     setIsProductModalOpen(false);
   };
 
-  // Handle image upload for create form (up to 9 images)
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 9) {
       alert("You can upload up to 9 images only.");
       return;
     }
+    console.log("Uploaded image files:", files);
     setNewOrder((prev) => ({ ...prev, images: files }));
   };
 
-  // Handle order creation (POST new order)
-  const handleCreateOrder = async () => {
-    console.log("Creating order with data:", newOrder);
-    try {
-      setIsSubmitting(true);
-      const formData = new FormData();
-      formData.append("user", newOrder.user);
-      formData.append("role", newOrder.role);
-      if (useCustomProduct) {
-        formData.append("customName", newOrder.customName);
-        formData.append("customDescription", newOrder.customDescription);
-      } else {
-        formData.append("productName", newOrder.productName);
-      }
-      formData.append("quantity", newOrder.quantity);
-      formData.append("size", newOrder.size);
-      formData.append("price", newOrder.price);
-      formData.append("status", newOrder.status);
-      newOrder.images.forEach((file) => {
-        formData.append("images", file);
-      });
-      // Log all FormData entries
-      for (let pair of formData.entries()) {
-        console.log(`${pair[0]}: ${pair[1]}`);
-      }
-      const response = await axios.post("https://backend-2tr2.onrender.com/api/orders", formData);
-      console.log("Order Created!", response.data);
-      setOrderCreated(true);
-      // ... rest of the code
-    } catch (err) {
-      console.error("🚨 Error creating order:", err.response?.data || err.message);
-      setIsSubmitting(false);
-    }
+  const handleSearch = () => {
+    // Filter orders based on search query
+    const filteredOrders = ordersList.filter((order) => {
+      const invoiceNumber = invoiceMapping[order._id] || "";
+      const senderName = getSenderInfo(order).name || "";
+      return (
+        invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        senderName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    });
+    setOrdersList(filteredOrders);
   };
-  
 
   return (
     <div>
+      {/* Warning Modal */}
+      <AnimatePresence>
+        {isWarningModalOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <div className="bg-white p-6 rounded-lg shadow-xl w-1/3 relative">
+              <h3 className="text-2xl font-bold mb-4 text-center">Warning</h3>
+              <p className="mb-4 text-center">{warningMessage}</p>
+              <button onClick={() => setIsWarningModalOpen(false)} className="bg-blue-500 text-white px-4 py-2 rounded w-full hover:bg-blue-600">
+                OK
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Search Input */}
+      <div className="mb-4 flex items-center">
+        <input
+          type="text"
+          placeholder="Search by invoice number or name"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="border p-2 w-full rounded mr-2"
+        />
+        <button onClick={handleSearch} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+          Search
+        </button>
+      </div>
+
       {/* Create Order Button */}
       <button
         onClick={() => setIsCreateModalOpen(true)}
@@ -358,30 +531,16 @@ export default function OrdersList({ isDark, showTable = false }) {
           >
             <div className="bg-white p-6 rounded-lg shadow-xl w-1/3 relative">
               <h3 className="text-2xl font-bold mb-4 text-center">📝 Create New Order</h3>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
-              >
+              <button onClick={() => setIsCreateModalOpen(false)} className="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
                 <XCircle size={28} />
               </button>
+              {/* Dynamic Role Label from admin data */}
               <div className="flex items-center my-3">
                 <label className="mr-2 font-bold">Role:</label>
-                <select
-                  value={newOrder.role}
-                  onChange={(e) => setNewOrder({ ...newOrder, role: e.target.value })}
-                  className="border p-2 rounded"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="MerlizSellers">MerlizSellers</option>
-                </select>
+                <span className="font-semibold">{newOrder.role}</span>
               </div>
               <div className="flex items-center my-3">
-                <input
-                  type="checkbox"
-                  checked={useCustomProduct}
-                  onChange={toggleCustomProduct}
-                  className="mr-2"
-                />
+                <input type="checkbox" checked={useCustomProduct} onChange={toggleCustomProduct} className="mr-2" />
                 <span className="text-lg">Add Customized Product</span>
               </div>
               {useCustomProduct ? (
@@ -390,17 +549,13 @@ export default function OrdersList({ isDark, showTable = false }) {
                     type="text"
                     placeholder="Custom Product Name"
                     value={newOrder.customName}
-                    onChange={(e) =>
-                      setNewOrder({ ...newOrder, customName: e.target.value })
-                    }
+                    onChange={(e) => setNewOrder({ ...newOrder, customName: e.target.value })}
                     className="border p-2 w-full my-3 rounded"
                   />
                   <textarea
                     placeholder="Custom Product Description"
                     value={newOrder.customDescription}
-                    onChange={(e) =>
-                      setNewOrder({ ...newOrder, customDescription: e.target.value })
-                    }
+                    onChange={(e) => setNewOrder({ ...newOrder, customDescription: e.target.value })}
                     className="border p-2 w-full my-3 rounded"
                   ></textarea>
                   <input
@@ -456,13 +611,7 @@ export default function OrdersList({ isDark, showTable = false }) {
               </select>
               <label className="border p-2 w-full flex items-center justify-center cursor-pointer my-3 rounded hover:bg-gray-100">
                 <Upload size={20} className="mr-2" /> Upload Product Images (up to 9)
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
+                <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
               </label>
               <button
                 onClick={handleCreateOrder}
@@ -492,10 +641,7 @@ export default function OrdersList({ isDark, showTable = false }) {
           >
             <div className="bg-white p-6 rounded-lg shadow-2xl w-3/4 max-h-[80vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6 text-center">Select a Product</h3>
-              <button
-                onClick={() => setIsProductModalOpen(false)}
-                className="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
-              >
+              <button onClick={() => setIsProductModalOpen(false)} className="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
                 <XCircle size={28} />
               </button>
               {Object.keys(groupedProducts).map((category) => (
@@ -510,21 +656,17 @@ export default function OrdersList({ isDark, showTable = false }) {
                             key={i}
                             disabled={product.soldOut}
                             onClick={() => handleSelectProduct(product)}
-                            className={`border rounded-lg p-2 hover:shadow-lg transition ${
-                              product.soldOut
-                                ? "opacity-50 cursor-not-allowed"
-                                : "hover:bg-gray-50"
+                            className={`border rounded-lg p-2 hover:shadow-lg transition-colors ${
+                              product.soldOut ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"
                             }`}
                           >
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              className="w-full h-32 object-cover rounded mb-2"
-                            />
+                            <img src={product.image} alt={product.name} className="w-full h-32 object-cover rounded mb-2" />
                             <div className="font-semibold text-sm text-center">{product.name}</div>
                             <div className="text-xs text-gray-600 text-center">{product.price}</div>
                             {product.soldOut && (
-                              <div className="text-xs text-red-500 mt-1 text-center">Sold Out</div>
+                              <div className="text-xs text-red-500 mt-1 text-center">
+                                Sold Out
+                              </div>
                             )}
                           </button>
                         ))}
@@ -552,68 +694,109 @@ export default function OrdersList({ isDark, showTable = false }) {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gray-200">
-                    <th className="p-2 border">Order ID</th>
                     <th className="p-2 border">Image</th>
                     <th className="p-2 border">Product</th>
+                    <th className="p-2 border">Sender Role</th>
+                    <th className="p-2 border">Sender Name</th>
+                    <th className="p-2 border">Order Date</th>
                     <th className="p-2 border">Status</th>
-                    <th className="p-2 border">Notify Customers</th>
+                    <th className="p-2 border">Payment Status</th>
+                    <th className="p-2 border">View Details</th>
                     <th className="p-2 border">Edit</th>
                     <th className="p-2 border">Delete</th>
+                    <th className="p-2 border">Invoice Action</th>
+                    <th className="p-2 border">Invoice Number</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ordersList.map((order) => (
-                    <motion.tr
-                      key={order._id}
-                      className="border cursor-pointer"
-                      whileHover={{ backgroundColor: "#4a4a4a", color: "#ffffff" }}
-                      transition={{ duration: 0.3 }}
-                      onClick={() => handleEditOrder(order)}
-                    >
-                      <td className="p-2">{order._id}</td>
-                      <td className="p-2">
-                        {order.images && order.images.length > 0 ? (
-                          <img
-                            src={order.images[0]}
-                            alt={order.product?.name || "Product Image"}
-                            className="w-12 h-12 object-cover rounded"
-                          />
-                        ) : (
-                          "N/A"
-                        )}
-                      </td>
-                      <td className="p-2">
-                        {order.product && order.product.name ? order.product.name : "N/A"}
-                      </td>
-                      <td className="p-2">{order.status}</td>
-                      <td className="p-2 flex items-center justify-center gap-1">
-                        <Bell size={20} />
-                        <span>Send Message</span>
-                      </td>
-                      <td className="p-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditOrder(order);
-                          }}
-                          className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                      </td>
-                      <td className="p-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteOrder(order._id);
-                          }}
-                          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                        >
-                          <XCircle size={18} />
-                        </button>
-                      </td>
-                    </motion.tr>
-                  ))}
+                  {ordersList.map((order) => {
+                    const { role: senderRole, name: senderName } = getSenderInfo(order);
+                    const orderDate = new Date(order.createdAt).toLocaleDateString();
+                    const paymentStatus = order.paymentStatus
+                      ? order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)
+                      : "Missing";
+                    const invoiceExists = !!invoiceMapping[order._id];
+                    console.log(`Rendering order ${order._id}: senderRole=${senderRole}, senderName=${senderName}`);
+                    return (
+                      <motion.tr
+                        key={order._id}
+                        className="border cursor-pointer"
+                        whileHover={{ backgroundColor: "#4a4a4a", color: "#ffffff" }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <td className="p-2">
+                          {order.images && order.images.length > 0 ? (
+                            <img
+                              src={order.images[0]}
+                              alt={order.product?.name || "Product Image"}
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                          ) : (
+                            "N/A"
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {order.product && order.product.name ? order.product.name : "N/A"}
+                        </td>
+                        <td className="p-2">{senderRole}</td>
+                        <td className="p-2">{senderName}</td>
+                        <td className="p-2">{orderDate}</td>
+                        <td className="p-2">{order.status}</td>
+                        <td className="p-2">{paymentStatus}</td>
+                        <td className="p-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetails(order);
+                            }}
+                            className="bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                        <td className="p-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditOrder(order);
+                            }}
+                            className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                        </td>
+                        <td className="p-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteOrder(order._id);
+                            }}
+                            className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                          >
+                            <DeleteIcon size={18} />
+                          </button>
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleGenerateInvoice(order);
+                            }}
+                            className={`px-2 py-1 h-14 w-48 rounded hover:shadow transition-colors ${
+                              invoiceExists
+                                ? "bg-purple-500 hover:bg-purple-600"
+                                : "bg-green-500 hover:bg-green-600"
+                            } text-white`}
+                          >
+                            {invoiceExists ? "View Invoice" : "Generate Invoice"}
+                          </button>
+                        </td>
+                        <td className="p-2 text-center">
+                          {invoiceExists ? invoiceMapping[order._id] : "not available"}
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
@@ -643,6 +826,7 @@ export default function OrdersList({ isDark, showTable = false }) {
               >
                 <XCircle size={28} />
               </button>
+              {/* Edit Modal Content */}
               <div className="mb-4">
                 <label className="block font-bold mb-1">Order ID:</label>
                 <p>{selectedOrder._id}</p>
@@ -661,12 +845,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) =>
-                    setSelectedOrder({
-                      ...selectedOrder,
-                      newImage: e.target.files[0],
-                    })
-                  }
+                  onChange={(e) => setSelectedOrder({ ...selectedOrder, newImage: e.target.files[0] })}
                   className="border p-1 rounded"
                 />
               </div>
@@ -679,9 +858,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                 <input
                   type="number"
                   value={selectedOrder.product?.price || selectedOrder.price}
-                  onChange={(e) =>
-                    setSelectedOrder({ ...selectedOrder, price: e.target.value })
-                  }
+                  onChange={(e) => setSelectedOrder({ ...selectedOrder, price: e.target.value })}
                   className="border p-2 rounded w-full"
                 />
               </div>
@@ -690,9 +867,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                 <input
                   type="text"
                   value={selectedOrder.product?.size || selectedOrder.size}
-                  onChange={(e) =>
-                    setSelectedOrder({ ...selectedOrder, size: e.target.value })
-                  }
+                  onChange={(e) => setSelectedOrder({ ...selectedOrder, size: e.target.value })}
                   className="border p-2 rounded w-full"
                 />
               </div>
@@ -701,9 +876,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                 <input
                   type="number"
                   value={selectedOrder.quantity}
-                  onChange={(e) =>
-                    setSelectedOrder({ ...selectedOrder, quantity: e.target.value })
-                  }
+                  onChange={(e) => setSelectedOrder({ ...selectedOrder, quantity: e.target.value })}
                   className="border p-2 rounded w-full"
                 />
               </div>
@@ -714,9 +887,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                     <input
                       type="text"
                       value={selectedOrder.customName || ""}
-                      onChange={(e) =>
-                        setSelectedOrder({ ...selectedOrder, customName: e.target.value })
-                      }
+                      onChange={(e) => setSelectedOrder({ ...selectedOrder, customName: e.target.value })}
                       className="border p-2 rounded w-full"
                     />
                   </div>
@@ -724,9 +895,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                     <label className="block font-bold mb-1">Custom Product Description:</label>
                     <textarea
                       value={selectedOrder.customDescription || ""}
-                      onChange={(e) =>
-                        setSelectedOrder({ ...selectedOrder, customDescription: e.target.value })
-                      }
+                      onChange={(e) => setSelectedOrder({ ...selectedOrder, customDescription: e.target.value })}
                       className="border p-2 rounded w-full"
                     ></textarea>
                   </div>
@@ -736,9 +905,7 @@ export default function OrdersList({ isDark, showTable = false }) {
                 <label className="block font-bold mb-1">Status:</label>
                 <select
                   value={selectedOrder.status}
-                  onChange={(e) =>
-                    setSelectedOrder({ ...selectedOrder, status: e.target.value })
-                  }
+                  onChange={(e) => setSelectedOrder({ ...selectedOrder, status: e.target.value })}
                   className="border p-2 rounded w-full"
                 >
                   <option value="Pending">Pending</option>

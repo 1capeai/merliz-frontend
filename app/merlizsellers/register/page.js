@@ -13,6 +13,9 @@ export default function MerlizSellersRegister() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [secretCode, setSecretCode] = useState("");
+  // Optional fields
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [location, setLocation] = useState({ latitude: "", longitude: "" });
   const [error, setError] = useState("");
   const router = useRouter();
@@ -40,11 +43,14 @@ export default function MerlizSellersRegister() {
       formData.append("name", name);
       formData.append("email", email);
       formData.append("password", password);
-      // Role is set to MerlizSellers
+      // Role is defined here as "MerlizSellers"
       formData.append("role", "MerlizSellers");
       formData.append("secretCode", secretCode);
       formData.append("latitude", location.latitude);
       formData.append("longitude", location.longitude);
+      // Append optional fields if provided
+      formData.append("phone", phone);
+      formData.append("address", address);
 
       const { data } = await axios.post(
         "https://backend-2tr2.onrender.com/api/auth/merlizsellers/register",
@@ -114,6 +120,21 @@ export default function MerlizSellersRegister() {
               onChange={(e) => setSecretCode(e.target.value)}
               className="border border-black p-3 w-full mb-4 rounded-lg bg-white text-black placeholder-gray-500"
             />
+            {/* Optional fields for phone and address */}
+            <input
+              type="text"
+              placeholder="Phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="border border-black p-3 w-full mb-4 rounded-lg bg-white text-black placeholder-gray-500"
+            />
+            <input
+              type="text"
+              placeholder="Address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="border border-black p-3 w-full mb-4 rounded-lg bg-white text-black placeholder-gray-500"
+            />
             <div className="mb-4 text-sm text-gray-600">
               {location.latitude && location.longitude
                 ? `Location: ${location.latitude}, ${location.longitude}`
@@ -171,7 +192,6 @@ export default function MerlizSellersRegister() {
               <span className="text-lg text-white">Exclusive 24/7 Support</span>
             </div>
           </div>
-          {/* "Get Started" button removed */}
         </motion.div>
       </div>
     </div>
