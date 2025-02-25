@@ -9,6 +9,7 @@ import {
   Download,
   Printer,
   Car,
+  CreditCard,
   MapPin,
   Share2,
   Building2,
@@ -88,25 +89,25 @@ export default function InvoiceDetailPage() {
           address.country,
           address.postalCode
         ].filter(part => part && part !== "N/A");
-
+  
         const message = `
   #${invoice.invoiceNumber}
-
+  
   ${invoice.items.map((item, index) => (
     `${item.quantity}x ${item.name} R ${item.total.toFixed(2)}`
   )).join('\n')}
-
+  
   Item total: R ${invoice.pricing.subtotal.toFixed(2)} (Qty: ${invoice.items.reduce((total, item) => total + item.quantity, 0)})
   Total: R ${invoice.pricing.total.toFixed(2)}
-
+  
   Customer: ${customer.name} ${customer.phone} ${customer.email}
-
+  
   Service: Delivery
   └ ${addressParts.join(', ')}
-
+  
   See invoice: ${window.location.href}
         `.trim();
-
+  
         await navigator.share({
           title: "Invoice",
           text: message
@@ -119,36 +120,41 @@ export default function InvoiceDetailPage() {
       alert("Web Share API is not supported in your browser.");
     }
   };
+  
+  
+  
+  
 
   const handleWhatsAppShare = async () => {
     try {
       // Construct the WhatsApp message using the provided template
       const message = `
   #${invoice.invoiceNumber}
-
+  
   ${invoice.items.map((item, index) => (
     `${item.quantity}x ${item.name} R ${item.total.toFixed(2)}`
   )).join('\n')}
-
+  
   Item total: R ${invoice.pricing.subtotal.toFixed(2)} (Qty: ${invoice.items.reduce((total, item) => total + item.quantity, 0)})
   Total: R ${invoice.pricing.total.toFixed(2)}
-
+  
   Customer: ${customer.name} ${customer.phone} ${customer.email}
-
+  
   Service: Delivery
   └ ${address.street}, ${address.city}, ${address.country} ${address.postalCode}
-
+  
   See invoice https://backend-2tr2.onrender.com/orders/cm71mrgfl000113f0zmaj36ex
       `.trim();
-
+  
       const whatsappURL = `https://wa.me/?text=${encodeURIComponent(message)}`;
-
+  
       // Open WhatsApp with the constructed message
       window.open(whatsappURL, "_blank");
     } catch (error) {
       console.error("Error sharing to WhatsApp:", error);
     }
   };
+  
 
   const handleModalSubmit = (e) => {
     e.preventDefault();
@@ -327,6 +333,16 @@ export default function InvoiceDetailPage() {
           <p className="text-lg"><strong>Bank:</strong> {invoice.bankingDetails.bank}</p>
           <p className="text-lg"><strong>Account Number:</strong> {invoice.bankingDetails.accountNumber}</p>
           <p className="text-lg"><strong>Account Holder:</strong> {invoice.bankingDetails.accountHolder}</p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="mt-8 flex gap-4 print:hidden">
+          {/* <button className="bg-green-500 hover:bg-green-600 transition-colors duration-200 text-white py-3 px-6 rounded-lg text-lg font-bold">
+            Pay Now
+          </button> */}
+          {/* <button className="bg-blue-500 hover:bg-blue-600 transition-colors duration-200 text-white py-3 px-6 rounded-lg text-lg font-bold">
+            Email Invoice
+          </button> */}
         </div>
       </div>
 
