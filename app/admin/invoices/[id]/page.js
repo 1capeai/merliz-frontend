@@ -35,7 +35,7 @@ export default function InvoiceDetailPage() {
       try {
         const token = localStorage.getItem("adminToken");
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const { data } = await axios.get(`http://localhost:5001/api/invoices/${id}`, { headers });
+        const { data } = await axios.get(`https://backend-2tr2.onrender.com/api/invoices/${id}`, { headers });
         setInvoice(data.invoice || data);
         setLoading(false);
 
@@ -143,7 +143,7 @@ export default function InvoiceDetailPage() {
   Service: Delivery
   └ ${address.street}, ${address.city}, ${address.country} ${address.postalCode}
   
-  See invoice https://take.app/merlizholdingsptyltd/orders/cm71mrgfl000113f0zmaj36ex
+  See invoice https://backend-2tr2.onrender.com/orders/cm71mrgfl000113f0zmaj36ex
       `.trim();
   
       const whatsappURL = `https://wa.me/?text=${encodeURIComponent(message)}`;
